@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f766e">
+  <title>选题库</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="auth-view" class="auth-view hidden">
+    <main class="auth-card">
+      <div class="brand-mark" aria-hidden="true" data-icon="lightbulb"></div>
+      <h1>我的选题库</h1>
+      <p class="muted">用 GitHub 账号登录，数据只保存在你的账号里</p>
+      <div id="auth-start">
+        <button id="github-login-btn" class="btn btn-primary btn-block" type="button">用 GitHub 登录</button>
+      </div>
+      <div id="auth-device" class="hidden">
+        <p class="muted">在授权页面输入这个验证码</p>
+        <div id="device-code" class="device-code"></div>
+        <a id="device-link" class="btn btn-primary btn-block" href="https://github.com/login/device" target="_blank" rel="noopener">打开 GitHub 授权页</a>
+        <p id="device-status" class="muted">等待授权...</p>
+      </div>
+      <p id="auth-error" class="form-error" role="alert"></p>
+    </main>
+  </div>
+
+  <div id="app-view" class="app-view hidden">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark sm" aria-hidden="true" data-icon="lightbulb"></span>
+          <div>
+            <h1>选题库</h1>
+            <p id="idea-count" class="muted">0 条选题</p>
+          </div>
+        </div>
+        <button id="logout-btn" class="icon-btn" type="button" title="退出登录" aria-label="退出登录" data-icon="log-out"></button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="toolbar">
+        <label class="search-box">
+          <span aria-hidden="true" data-icon="search"></span>
+          <input id="search-input" type="search" placeholder="搜索标题、内容或标签">
+        </label>
+
+        <div class="filters">
+          <div id="status-filters" class="chips" role="group" aria-label="按状态筛选"></div>
+          <div class="select-row">
+            <label class="select-wrap">
+              <span class="sr-only">按标签筛选</span>
+              <span class="select-icon" aria-hidden="true" data-icon="tag"></span>
+              <select id="tag-filter">
+                <option value="">全部标签</option>
+              </select>
+            </label>
+            <label class="select-wrap">
+              <span class="sr-only">按时间筛选</span>
+              <span class="select-icon" aria-hidden="true" data-icon="calendar"></span>
+              <select id="time-filter">
+                <option value="">全部时间</option>
+                <option value="today">今天</option>
+                <option value="7d">近 7 天</option>
+                <option value="30d">近 30 天</option>
+                <option value="custom">自定义日期</option>
+              </select>
+            </label>
+            <button id="sort-btn" class="select-wrap sort-btn" type="button" title="切换时间排序" aria-label="切换时间排序">
+              <span aria-hidden="true" data-icon="clock"></span>
+              <span id="sort-label">最新在前</span>
+            </button>
+          </div>
+          <div id="custom-range" class="custom-range hidden">
+            <label>从 <input id="date-from" type="date"></label>
+            <label>到 <input id="date-to" type="date"></label>
+          </div>
+        </div>
+      </section>
+
+      <section id="idea-list" class="idea-list" aria-live="polite"></section>
+
+      <div id="empty-state" class="empty-state hidden">
+        <span class="empty-icon" aria-hidden="true" data-icon="lightbulb"></span>
+        <h2>还没有符合条件的选题</h2>
+        <p class="muted">点右下角的加号，记下第一个想法</p>
+      </div>
+    </main>
+
+    <button id="new-idea-btn" class="fab" type="button" title="新建选题" aria-label="新建选题" data-icon="plus"></button>
+  </div>
+
+  <div id="editor" class="editor hidden" role="dialog" aria-modal="true" aria-labelledby="editor-title">
+    <div class="editor-header">
+      <button id="editor-back" class="icon-btn" type="button" title="返回" aria-label="返回" data-icon="chevron-left"></button>
+      <div class="editor-meta">
+        <span id="save-state" class="save-state">未保存</span>
+      </div>
+      <button id="editor-delete" class="icon-btn danger" type="button" title="删除" aria-label="删除" data-icon="trash"></button>
+    </div>
+    <div class="editor-body">
+      <input id="editor-title-input" class="title-input" type="text" placeholder="给这个选题起个标题" maxlength="120">
+      <textarea id="editor-content" class="content-input" placeholder="写下你的想法、灵感来源、想表达的观点..." rows="10"></textarea>
+
+      <div class="editor-fields">
+        <div class="field">
+          <span class="field-label">状态</span>
+          <div id="editor-status" class="chips editor-chips" role="group" aria-label="选题状态"></div>
+        </div>
+        <label class="field">
+          <span class="field-label">标签</span>
+          <div class="tag-editor">
+            <div id="editor-tags" class="tag-list"></div>
+            <input id="tag-input" type="text" placeholder="输入后回车添加" maxlength="20">
+          </div>
+        </label>
+        <label class="field">
+          <span class="field-label">来源链接（可选）</span>
+          <div class="input-with-icon">
+            <span aria-hidden="true" data-icon="link"></span>
+            <input id="editor-source" type="url" placeholder="https://...">
+          </div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
