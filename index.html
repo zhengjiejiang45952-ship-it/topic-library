@@ -12,15 +12,14 @@
     <main class="auth-card">
       <div class="brand-mark" aria-hidden="true" data-icon="lightbulb"></div>
       <h1>我的选题库</h1>
-      <p class="muted">用 GitHub 账号登录，数据只保存在你的账号里</p>
+      <p class="muted">粘贴你的 GitHub 访问令牌，数据只保存在你的账号里</p>
       <div id="auth-start">
-        <button id="github-login-btn" class="btn btn-primary btn-block" type="button">用 GitHub 登录</button>
-      </div>
-      <div id="auth-device" class="hidden">
-        <p class="muted">在授权页面输入这个验证码</p>
-        <div id="device-code" class="device-code"></div>
-        <a id="device-link" class="btn btn-primary btn-block" href="https://github.com/login/device" target="_blank" rel="noopener">打开 GitHub 授权页</a>
-        <p id="device-status" class="muted">等待授权...</p>
+        <label class="field">
+          <span>GitHub 访问令牌</span>
+          <input id="token-input" type="password" placeholder="ghp_ 或 github_pat_ 开头" autocomplete="off">
+        </label>
+        <button id="token-login-btn" class="btn btn-primary btn-block" type="button">保存并进入</button>
+        <p class="muted auth-hint">需要一个能读写 gist 的令牌，下面告诉你如何获取</p>
       </div>
       <p id="auth-error" class="form-error" role="alert"></p>
     </main>
