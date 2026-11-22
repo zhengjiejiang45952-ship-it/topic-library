@@ -93,9 +93,8 @@ function showAuth() {
   $("app-view").classList.add("hidden");
   $("editor").classList.add("hidden");
   $("auth-view").classList.remove("hidden");
-  $("auth-start").classList.remove("hidden");
-  $("auth-device").classList.add("hidden");
   $("auth-error").textContent = "";
+  $("token-input").value = "";
 }
 
 function showApp() {
@@ -111,92 +110,25 @@ async function enterApp() {
 }
 
 function logout(show = true) {
-  clearTimeout(state.pollTimer);
   clearTimeout(state.saveTimer);
   state.token = "";
-  state.device = null;
   localStorage.removeItem(TOKEN_KEY);
   if (show) showAuth();
 }
 
-async function startLogin() {
+function tokenLogin() {
   $("auth-error").textContent = "";
-  try {
-    const res = await fetch("https://github.com/login/device/code", {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ client_id: CLIENT_ID, scope: "gist" })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error_description || data.error || "无法开始登录");
-    state.device = data;
-    $("auth-start").classList.add("hidden");
-    $("auth-device").classList.remove("hidden");
-    $("device-code").textContent = data.user_code;
-    $("device-link").href = data.verification_uri;
-    $("device-status").textContent = "等待授权...";
-    schedulePoll();
-  } catch (err) {
+  const token = $("token-input").value.trim();
+  if (!token) {
+    $("auth-error").textContent = "请先粘贴访问令牌";
+    return;
+  }
+  state.token = token;
+  localStorage.setItem(TOKEN_KEY, token);
+  enterApp().catch((err) => {
+    logout(false);
     $("auth-error").textContent = err.message;
-  }
-}
-
-function schedulePoll() {
-  clearTimeout(state.pollTimer);
-  const interval = (state.device.interval || 5) * 1000;
-  state.pollTimer = setTimeout(pollToken, interval);
-}
-
-async function pollToken() {
-  try {
-    const res = await fetch("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({
-        client_id: CLIENT_ID,
-        device_code: state.device.device_code,
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code"
-      })
-    });
-    const data = await res.json();
-    if (data.access_token) {
-      state.token = data.access_token;
-      localStorage.setItem(TOKEN_KEY, data.access_token);
-      await enterApp();
-      return;
-    }
-    if (data.error === "authorization_pending") {
-      $("device-status").textContent = "等待授权...";
-      schedulePoll();
-      return;
-    }
-    if (data.error === "slow_down") {
-      $("device-status").textContent = "授权有点慢，继续等待...";
-      schedulePoll();
-      return;
-    }
-    if (data.error === "expired_token") {
-      resetLogin("验证码已过期，请重新登录");
-      return;
-    }
-    if (data.error === "access_denied") {
-      resetLogin("你拒绝了授权");
-      return;
-    }
-    $("device-status").textContent = "状态未知，继续等待...";
-    schedulePoll();
-  } catch (err) {
-    $("device-status").textContent = "网络错误，继续尝试...";
-    schedulePoll();
-  }
-}
-
-function resetLogin(message) {
-  clearTimeout(state.pollTimer);
-  state.device = null;
-  $("auth-device").classList.add("hidden");
-  $("auth-start").classList.remove("hidden");
-  $("auth-error").textContent = message || "";
+  });
 }
 
 async function findGist() {
@@ -514,7 +446,10 @@ async function deleteCurrentIdea() {
 }
 
 function bindEvents() {
-  $("github-login-btn").addEventListener("click", startLogin);
+  $("token-login-btn").addEventListener("click", tokenLogin);
+  $("token-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") tokenLogin();
+  });
   $("logout-btn").addEventListener("click", () => logout());
 
   $("search-input").addEventListener("input", (e) => {
