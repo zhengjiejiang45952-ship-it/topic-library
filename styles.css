@@ -195,6 +195,11 @@ input:focus, textarea:focus, select:focus {
   color: var(--text);
 }
 
+.auth-hint {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
 .topbar {
   position: sticky;
   top: 0;
