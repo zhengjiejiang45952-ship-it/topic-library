@@ -142,12 +142,6 @@ async function findGist() {
   return state.gistId;
 }
 
-function decodeBase64(str) {
-  const bin = atob(String(str).replace(/\s/g, ""));
-  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
 async function loadDb() {
   const id = await findGist();
   if (!id) return { ideas: [] };
@@ -155,7 +149,7 @@ async function loadDb() {
   const file = gist.files && gist.files[GIST_FILENAME];
   if (!file || !file.content) return { ideas: [] };
   try {
-    const db = JSON.parse(decodeBase64(file.content));
+    const db = JSON.parse(file.content);
     if (!Array.isArray(db.ideas)) db.ideas = [];
     return db;
   } catch (err) {
