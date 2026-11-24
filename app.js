@@ -75,7 +75,7 @@ async function gh(path, options = {}) {
     }
   });
   if (res.status === 401) {
-    logout(false);
+    logout(true);
     throw new Error("登录已失效，请重新登录");
   }
   const text = await res.text();
@@ -104,7 +104,14 @@ function showApp() {
 
 async function enterApp() {
   showApp();
-  state.db = await loadDb();
+  try {
+    state.gistId = await resolveBestGist();
+    state.db = await loadDb();
+  } catch (err) {
+    if (String(err.message || "").includes("登录已失效")) throw err;
+    state.db = { ideas: [] };
+    showToast("云端暂时连不上，请稍后下拉刷新");
+  }
   state.ideas = state.db.ideas || [];
   render();
 }
@@ -127,23 +134,33 @@ function tokenLogin() {
   localStorage.setItem(TOKEN_KEY, token);
   enterApp().catch((err) => {
     logout(false);
+    showAuth();
     $("auth-error").textContent = err.message;
   });
 }
 
-async function findGist() {
-  if (state.gistId) return state.gistId;
+function gistIdeasSize(gist) {
+  const file = gist.files && gist.files[GIST_FILENAME];
+  return file && typeof file.size === "number" ? file.size : 0;
+}
+
+async function resolveBestGist() {
   const gists = await gh("/gists?per_page=100");
-  const found = Array.isArray(gists) ? gists.find((gist) => gist.description === GIST_DESCRIPTION) : null;
-  if (found) {
-    state.gistId = found.id;
-    localStorage.setItem(GIST_ID_KEY, found.id);
-  }
+  const matches = Array.isArray(gists) ? gists.filter((gist) => gist.description === GIST_DESCRIPTION) : [];
+  if (matches.length === 0) return "";
+  matches.sort((a, b) => gistIdeasSize(b) - gistIdeasSize(a));
+  state.gistId = matches[0].id;
+  localStorage.setItem(GIST_ID_KEY, state.gistId);
   return state.gistId;
 }
 
+async function findGist() {
+  if (state.gistId) return state.gistId;
+  return resolveBestGist();
+}
+
 async function loadDb() {
-  const id = await findGist();
+  const id = state.gistId || await findGist();
   if (!id) return { ideas: [] };
   const gist = await gh("/gists/" + id);
   const file = gist.files && gist.files[GIST_FILENAME];
@@ -153,6 +170,7 @@ async function loadDb() {
     if (!Array.isArray(db.ideas)) db.ideas = [];
     return db;
   } catch (err) {
+    showToast("云端内容读不出来，点右上角时钟找回历史版本");
     return { ideas: [] };
   }
 }
@@ -194,15 +212,11 @@ async function saveDb(db, opts = {}) {
 }
 
 async function fetchServerIdeas(id) {
-  try {
-    const gist = await gh("/gists/" + id);
-    const file = gist.files && gist.files[GIST_FILENAME];
-    if (file && file.content) {
-      const db = JSON.parse(file.content);
-      if (Array.isArray(db.ideas)) return db.ideas;
-    }
-  } catch (err) {}
-  return null;
+  const gist = await gh("/gists/" + id);
+  const file = gist.files && gist.files[GIST_FILENAME];
+  if (!file || typeof file.content !== "string" || file.content.trim() === "") return [];
+  const db = JSON.parse(file.content);
+  return Array.isArray(db.ideas) ? db.ideas : [];
 }
 
 async function writeIdeas(ideas) {
@@ -229,8 +243,8 @@ async function writeIdeas(ideas) {
 
 async function upsertIdea(idea) {
   const id = await findGist();
-  let ideas = id ? await fetchServerIdeas(id) : null;
-  if (!ideas) ideas = [];
+  let ideas = [];
+  if (id) ideas = await fetchServerIdeas(id);
   const index = ideas.findIndex((item) => item.id === idea.id);
   if (index === -1) ideas.push(idea);
   else ideas[index] = idea;
@@ -242,7 +256,7 @@ async function removeIdea(ideaId) {
   const id = await findGist();
   if (!id) return [];
   const ideas = await fetchServerIdeas(id);
-  const next = Array.isArray(ideas) ? ideas.filter((item) => item.id !== ideaId) : [];
+  const next = ideas.filter((item) => item.id !== ideaId);
   await writeIdeas(next);
   return next;
 }
@@ -673,7 +687,7 @@ async function init() {
     try {
       await enterApp();
     } catch (err) {
-      logout(false);
+      logout(true);
     }
   } else {
     showAuth();
