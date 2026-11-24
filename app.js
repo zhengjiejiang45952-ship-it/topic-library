@@ -157,13 +157,27 @@ async function loadDb() {
   }
 }
 
-async function saveDb(db) {
+async function saveDb(db, opts = {}) {
   const content = JSON.stringify(db);
   const id = await findGist();
   if (id) {
+    let finalDb = db;
+    if (!opts.allowEmpty && (!Array.isArray(db.ideas) || db.ideas.length === 0)) {
+      try {
+        const current = await gh("/gists/" + id);
+        const file = current.files && current.files[GIST_FILENAME];
+        if (file && file.content) {
+          const server = JSON.parse(file.content);
+          if (Array.isArray(server.ideas) && server.ideas.length > 0) {
+            finalDb = { ideas: server.ideas };
+            showToast("已保留云端已有的内容，没有用空数据覆盖");
+          }
+        }
+      } catch (err) {}
+    }
     await gh("/gists/" + id, {
       method: "PATCH",
-      body: JSON.stringify({ files: { [GIST_FILENAME]: { content } } })
+      body: JSON.stringify({ files: { [GIST_FILENAME]: { content: JSON.stringify(finalDb) } } })
     });
   } else {
     const gist = await gh("/gists", {
@@ -177,6 +191,70 @@ async function saveDb(db) {
     state.gistId = gist.id;
     localStorage.setItem(GIST_ID_KEY, gist.id);
   }
+}
+
+function formatFullDate(iso) {
+  if (!iso) return "时间未知";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"
+  }).format(new Date(iso));
+}
+
+async function openRevisions() {
+  $("revisions-modal").classList.remove("hidden");
+  const listEl = $("revisions-list");
+  listEl.innerHTML = '<p class="muted">正在读取历史版本...</p>';
+  try {
+    const id = await findGist();
+    if (!id) {
+      listEl.innerHTML = '<p class="muted">还没有云端数据，找不到历史版本。</p>';
+      return;
+    }
+    const commits = await gh("/gists/" + id + "/commits?per_page=30");
+    if (!Array.isArray(commits) || commits.length === 0) {
+      listEl.innerHTML = '<p class="muted">没有历史版本。</p>';
+      return;
+    }
+    const rows = [];
+    for (const commit of commits.slice(0, 20)) {
+      let count = null;
+      try {
+        const rev = await gh("/gists/" + id + "/" + commit.version);
+        const file = rev.files && rev.files[GIST_FILENAME];
+        if (file && file.content) {
+          const db = JSON.parse(file.content);
+          if (Array.isArray(db.ideas)) count = db.ideas.length;
+        }
+      } catch (err) {}
+      rows.push({ version: commit.version, at: commit.committed_at, count });
+    }
+    listEl.innerHTML = rows.map((row) => `
+      <div class="revision-row">
+        <div>
+          <strong>${escapeHtml(formatFullDate(row.at))}</strong>
+          <span class="muted">${row.count === null ? "内容无法读取" : `${row.count} 条选题`}</span>
+        </div>
+        <button type="button" class="btn btn-primary restore-btn" data-version="${escapeAttr(row.version)}">恢复</button>
+      </div>`).join("");
+  } catch (err) {
+    listEl.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function restoreRevision(version) {
+  const id = await findGist();
+  if (!id) throw new Error("找不到云端数据");
+  const rev = await gh("/gists/" + id + "/" + version);
+  const file = rev.files && rev.files[GIST_FILENAME];
+  if (!file || !file.content) throw new Error("这个版本没有内容");
+  const db = JSON.parse(file.content);
+  const ideas = Array.isArray(db.ideas) ? db.ideas : [];
+  await saveDb({ ideas }, { allowEmpty: true });
+  state.db = { ideas };
+  state.ideas = ideas;
+  $("revisions-modal").classList.add("hidden");
+  render();
+  showToast(`已恢复 ${ideas.length} 条选题`);
 }
 
 function allTags() {
@@ -429,7 +507,7 @@ async function deleteCurrentIdea() {
   if (!ok) return;
   try {
     state.db.ideas = state.db.ideas.filter((item) => item.id !== state.editingId);
-    await saveDb(state.db);
+    await saveDb(state.db, { allowEmpty: true });
     closeEditor();
     state.ideas = state.db.ideas;
     render();
@@ -445,6 +523,24 @@ function bindEvents() {
     if (e.key === "Enter") tokenLogin();
   });
   $("logout-btn").addEventListener("click", () => logout());
+  $("revisions-btn").addEventListener("click", openRevisions);
+  $("empty-recover-btn").addEventListener("click", openRevisions);
+  $("revisions-close").addEventListener("click", () => $("revisions-modal").classList.add("hidden"));
+  $("revisions-modal").addEventListener("click", (e) => {
+    if (e.target === $("revisions-modal")) $("revisions-modal").classList.add("hidden");
+  });
+  $("revisions-list").addEventListener("click", (e) => {
+    const btn = e.target.closest(".restore-btn");
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = "恢复中...";
+    restoreRevision(btn.dataset.version)
+      .catch((err) => showToast(err.message))
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = "恢复";
+      });
+  });
 
   $("search-input").addEventListener("input", (e) => {
     state.filters.q = e.target.value;
