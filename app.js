@@ -193,6 +193,60 @@ async function saveDb(db, opts = {}) {
   }
 }
 
+async function fetchServerIdeas(id) {
+  try {
+    const gist = await gh("/gists/" + id);
+    const file = gist.files && gist.files[GIST_FILENAME];
+    if (file && file.content) {
+      const db = JSON.parse(file.content);
+      if (Array.isArray(db.ideas)) return db.ideas;
+    }
+  } catch (err) {}
+  return null;
+}
+
+async function writeIdeas(ideas) {
+  const content = JSON.stringify({ ideas });
+  const id = await findGist();
+  if (id) {
+    await gh("/gists/" + id, {
+      method: "PATCH",
+      body: JSON.stringify({ files: { [GIST_FILENAME]: { content } } })
+    });
+    return;
+  }
+  const gist = await gh("/gists", {
+    method: "POST",
+    body: JSON.stringify({
+      description: GIST_DESCRIPTION,
+      public: false,
+      files: { [GIST_FILENAME]: { content } }
+    })
+  });
+  state.gistId = gist.id;
+  localStorage.setItem(GIST_ID_KEY, gist.id);
+}
+
+async function upsertIdea(idea) {
+  const id = await findGist();
+  let ideas = id ? await fetchServerIdeas(id) : null;
+  if (!ideas) ideas = [];
+  const index = ideas.findIndex((item) => item.id === idea.id);
+  if (index === -1) ideas.push(idea);
+  else ideas[index] = idea;
+  await writeIdeas(ideas);
+  return ideas;
+}
+
+async function removeIdea(ideaId) {
+  const id = await findGist();
+  if (!id) return [];
+  const ideas = await fetchServerIdeas(id);
+  const next = Array.isArray(ideas) ? ideas.filter((item) => item.id !== ideaId) : [];
+  await writeIdeas(next);
+  return next;
+}
+
 function formatFullDate(iso) {
   if (!iso) return "时间未知";
   return new Intl.DateTimeFormat("zh-CN", {
@@ -466,12 +520,11 @@ async function saveIdea() {
     if (state.editingId) {
       const index = state.db.ideas.findIndex((idea) => idea.id === state.editingId);
       if (index === -1) throw new Error("记录不存在");
-      state.db.ideas[index] = {
+      saved = {
         ...state.db.ideas[index],
         ...payload,
         updatedAt: new Date().toISOString()
       };
-      saved = state.db.ideas[index];
     } else {
       const now = new Date().toISOString();
       saved = {
@@ -480,10 +533,9 @@ async function saveIdea() {
         createdAt: now,
         updatedAt: now
       };
-      state.db.ideas.push(saved);
       state.editingId = saved.id;
     }
-    await saveDb(state.db);
+    state.db.ideas = await upsertIdea(saved);
     state.savedDraft = JSON.stringify({
       title: saved.title,
       content: saved.content,
@@ -506,8 +558,7 @@ async function deleteCurrentIdea() {
   const ok = window.confirm(`确定删除「${idea ? idea.title : "这条选题"}」吗？`);
   if (!ok) return;
   try {
-    state.db.ideas = state.db.ideas.filter((item) => item.id !== state.editingId);
-    await saveDb(state.db, { allowEmpty: true });
+    state.db.ideas = await removeIdea(state.editingId);
     closeEditor();
     state.ideas = state.db.ideas;
     render();
