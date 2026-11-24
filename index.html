@@ -35,7 +35,10 @@
             <p id="idea-count" class="muted">0 条选题</p>
           </div>
         </div>
-        <button id="logout-btn" class="icon-btn" type="button" title="退出登录" aria-label="退出登录" data-icon="log-out"></button>
+        <div class="topbar-actions">
+          <button id="revisions-btn" class="icon-btn" type="button" title="找回历史版本" aria-label="找回历史版本" data-icon="clock"></button>
+          <button id="logout-btn" class="icon-btn" type="button" title="退出登录" aria-label="退出登录" data-icon="log-out"></button>
+        </div>
       </div>
     </header>
 
@@ -85,6 +88,7 @@
         <span class="empty-icon" aria-hidden="true" data-icon="lightbulb"></span>
         <h2>还没有符合条件的选题</h2>
         <p class="muted">点右下角的加号，记下第一个想法</p>
+        <button id="empty-recover-btn" class="btn btn-ghost" type="button">找回历史版本</button>
       </div>
     </main>
 
@@ -123,6 +127,17 @@
           </div>
         </label>
       </div>
+    </div>
+  </div>
+
+  <div id="revisions-modal" class="revisions-modal hidden" role="dialog" aria-modal="true" aria-labelledby="revisions-title">
+    <div class="revisions-panel">
+      <div class="revisions-head">
+        <h2 id="revisions-title">云端历史版本</h2>
+        <button id="revisions-close" class="icon-btn" type="button" title="关闭" aria-label="关闭" data-icon="x"></button>
+      </div>
+      <p class="muted">每次保存都会留下一个版本，点“恢复”找回当时的内容</p>
+      <div id="revisions-list" class="revisions-list"></div>
     </div>
   </div>
 
